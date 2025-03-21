@@ -1,0 +1,88 @@
+```{r}
+library(shiny)
+library(dplyr)
+library(plotly)
+library(readr)
+
+alz = read_csv("alzheimers_prediction_dataset.csv")
+```
+
+```{r}
+ui = fluidPage(
+  titlePanel("Comparative Distribution Analysis of Alzheimer’s Factors"),
+  sidebarLayout(
+    sidebarPanel(
+    sliderInput(inputId = "ageRange", label = "Age Range:", 
+                min = floor(min(alz$Age, na.rm = TRUE)), 
+                max = ceiling(max(alz$Age, na.rm = TRUE)), 
+                value = c(50, 90)),
+      selectInput(inputId  = "genderFilter",
+                  label = "Gender:",
+                  choices = c("All", unique(alz$Gender)),
+                  selected = "All"),
+      selectInput(inputId  = "countryFilter",
+                  label = "Country:",
+                  choices  = c("All", unique(alz$Country)),
+                  selected = "All"),
+      selectInput(inputId = "varChoice",
+                  label = "Variable to Analyze:",
+                  choices = c("Physical Activity Level",
+                              "Smoking Status",
+                              "Alcohol Consumption",
+                              "Diabetes",
+                              "Hypertension",
+                              "Cholesterol Level",
+                              "Family History of Alzheimer’s",
+                              "Genetic Risk Factor (APOE-ε4 allele)",
+                              "Stress Levels"),
+        selected = "Physical Activity Level")),
+    mainPanel(tabsetPanel(
+      tabPanel("Alzheimer's Diagnosis Overview",
+               plotlyOutput("pieDiagnosisPlot"))))))
+```
+
+```{r}
+server = function(input, output, session) {
+  # Return filtered data based on age, gender, and country filters
+  filtered_data = reactive({
+    df = alz
+    df = df %>%
+      filter(Age >= input$ageRange[1], Age <= input$ageRange[2])
+    if (input$genderFilter != "All") {
+      df = df %>% filter(Gender == input$genderFilter)} 
+    if (input$countryFilter != "All") {
+      df = df %>% filter(Country == input$countryFilter)}
+    return(df)})
+  
+  # Render side-by-side pie charts for AD diagnosis (Yes and No)
+  output$pieDiagnosisPlot = renderPlotly({
+    var = input$varChoice
+    df_filtered = filtered_data()
+    
+    # AD = Yes
+    df_yes = df_filtered %>%
+      filter(`Alzheimer’s Diagnosis` == "Yes") %>%
+      group_by(.data[[var]]) %>%
+      summarize(count = n(), .groups = "drop") %>%
+      filter(!is.na(.data[[var]]))
+    
+    # AD = No
+    df_no = df_filtered %>%
+      filter(`Alzheimer’s Diagnosis` == "No") %>%
+      group_by(.data[[var]]) %>%
+      summarize(count = n(), .groups = "drop") %>%
+      filter(!is.na(.data[[var]]))
+    
+    plot_ly() %>%
+      add_pie(data = df_yes, labels = ~.data[[var]], values = ~count,
+              name = "AD = Yes", domain = list(x = c(0, 0.45), y = c(0, 1))) %>%
+      add_pie(data = df_no, labels = ~.data[[var]], values = ~count,
+              name = "AD = No", domain = list(x = c(0.55, 1), y = c(0, 1))) %>%
+      layout(title = paste("AD Diagnosis Pie Charts by", var), showlegend = TRUE, 
+             legend = list(orientation = "h"), template = "plotly_dark")
+  })
+}
+
+shinyApp(ui, server)
+```
+
