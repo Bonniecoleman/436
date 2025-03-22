@@ -1,0 +1,71 @@
+```{r}
+library(tidyverse)
+library(gganimate)
+library(lubridate)
+library(scales)
+```
+
+```{r}
+df = read_csv("amazon.csv") %>%
+  mutate(date = as_date(date))
+
+amazon_monthly = df %>%
+  mutate(month = floor_date(date, unit = "month")) %>%
+  group_by(month) %>%
+  summarise(avg_close = mean(close)) %>%
+  ungroup()
+
+events = tribble(
+  ~date, ~event, ~desc,
+  as_date("2020-03-16"), "COVID-19 Crisis", "Stock plunged due to pandemic")
+```
+
+```{r}
+p = ggplot(amazon_monthly, aes(x = month, y = avg_close)) +
+  geom_line(color = "#FF9900", linewidth = 1.5, alpha = 0.8) +
+  geom_point(color = "#FF9900", size = 4, alpha = 0.9) +
+  geom_label(aes(label = sprintf("$%.2f", avg_close)),
+             fill = "#FF9900", color = "black",
+             fontface = "bold", size = 4,
+             nudge_y = 15, label.padding = unit(0.2, "lines")) +
+
+  geom_vline(data = events, aes(xintercept = date),
+             color = "#FFFFFF50", linetype = "dashed") +
+
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  scale_y_continuous(labels = dollar_format(),
+                     expand = expansion(mult = c(0.05, 0.2))) +
+  labs(
+    title = "Amazon's Stock Journey (2000-2025)",
+    subtitle = "Month: {format(frame_along, '%B %Y')}",
+    x = "", y = "Average Price (USD)",
+    caption = "Source: Kaggle | Visualized with gganimate") +
+  theme_minimal(base_size = 14, base_family = "Arial") +
+  theme(
+    plot.background = element_rect(fill = "#101820", color = NA),
+    panel.background = element_rect(fill = "#101820", color = NA),
+    panel.grid.major = element_line(color = "#FFFFFF30"),
+    panel.grid.minor = element_blank(),
+    axis.text = element_text(color = "white"),
+    axis.title = element_text(color = "white", face = "bold"),
+    plot.title = element_text(color = "#FF9900", face = "bold", size = 20, hjust = 0.5),
+    plot.subtitle = element_text(color = "white", size = 16, hjust = 0.5),
+    plot.caption = element_text(color = "gray80", size = 10, hjust = 1)) +
+  
+  transition_reveal(month) +
+  shadow_mark(wake_length = 0.05, alpha = FALSE, size = 3) +
+  enter_grow() +
+  ease_aes('elastic-out') +
+  geom_label(data = events,
+             aes(x = date, y = max(amazon_monthly$avg_close) * 1.1, label = event),
+             fill = "#D31027", color = "white",
+             fontface = "bold", size = 4, alpha = 0.9)
+
+anim = animate(p, duration = 23, fps = 15, width = 1200, height = 600, 
+        end_pause = 15, renderer = gifski_renderer(loop = FALSE))
+```
+
+```{r}
+anim_save("amazon_stock_animation.gif", anim)
+```
+
